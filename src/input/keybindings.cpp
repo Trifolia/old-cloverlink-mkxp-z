@@ -62,15 +62,35 @@ struct CtrlBindingData {
 
 /* Common */
 static const KbBindingData defaultKbBindings[] = {
-    {SDL_SCANCODE_LEFT, Input::Left},    {SDL_SCANCODE_RIGHT, Input::Right},
-    {SDL_SCANCODE_UP, Input::Up},        {SDL_SCANCODE_DOWN, Input::Down},
+    {SDL_SCANCODE_LEFT, Input::Left},
+    {SDL_SCANCODE_RIGHT, Input::Right},
+    {SDL_SCANCODE_UP, Input::Up},
+    {SDL_SCANCODE_DOWN, Input::Down},
 
-    {SDL_SCANCODE_Z, Input::Action},     {SDL_SCANCODE_SPACE, Input::Action},
-    {SDL_SCANCODE_X, Input::Cancel},     {SDL_SCANCODE_ESCAPE, Input::Cancel},
-    {SDL_SCANCODE_A, Input::Menu},       {SDL_SCANCODE_RETURN, Input::Menu},
-    {SDL_SCANCODE_S, Input::Items},      {SDL_SCANCODE_LSHIFT, Input::Run},
-    {SDL_SCANCODE_C, Input::Deactivate}, {SDL_SCANCODE_Q, Input::L},
-    {SDL_SCANCODE_W, Input::R}};
+    {SDL_SCANCODE_Z, Input::Action},
+    {SDL_SCANCODE_SPACE, Input::Action},
+    {SDL_SCANCODE_X, Input::Cancel},
+    {SDL_SCANCODE_ESCAPE, Input::Cancel},
+    {SDL_SCANCODE_A, Input::Menu},
+    {SDL_SCANCODE_RETURN, Input::Menu},
+    {SDL_SCANCODE_S, Input::Items},
+    {SDL_SCANCODE_LSHIFT, Input::Run},
+    {SDL_SCANCODE_C, Input::Deactivate},
+    {SDL_SCANCODE_Q, Input::L},
+    {SDL_SCANCODE_W, Input::R},
+    // Cloverlink keybinds
+    {SDL_SCANCODE_TAB, Input::Chat},
+    {SDL_SCANCODE_LALT, Input::ToggleChat},
+    {SDL_SCANCODE_M, Input::Map},
+    {SDL_SCANCODE_F10, Input::Playing},
+    {SDL_SCANCODE_RETURN, Input::MSG},
+    {SDL_SCANCODE_KP_ENTER, Input::MSG},
+    {SDL_SCANCODE_F, Input::Favorite},
+    {SDL_SCANCODE_1, Input::E1},
+    {SDL_SCANCODE_2, Input::E2},
+    {SDL_SCANCODE_3, Input::E3},
+    {SDL_SCANCODE_4, Input::E4},
+};
 
 static elementsN(defaultKbBindings);
 
@@ -178,10 +198,13 @@ void storeBindings(const BDescVec &d, const Config &conf) {
 
 static bool verifyDesc(const BindingDesc &desc) {
   const Input::ButtonCode codes[] = {
-      Input::None,       Input::Down,   Input::Left, Input::Right, Input::Up,
-      Input::Action,     Input::Cancel, Input::Menu, Input::Items, Input::Run,
-      Input::Deactivate, Input::L,      Input::R,    Input::F5,    Input::F6,
-      Input::F7,         Input::F8,     Input::F9};
+      Input::None,  Input::Down,    Input::Left,       Input::Right,
+      Input::Up,    Input::Action,  Input::Cancel,     Input::Menu,
+      Input::Items, Input::Run,     Input::Deactivate, Input::L,
+      Input::R,     Input::F5,      Input::F6,         Input::F7,
+      Input::F8,    Input::F9,      Input::Chat,       Input::ToggleChat,
+      Input::Map,   Input::Playing, Input::MSG,        Input::E1,
+      Input::E2,    Input::E3,      Input::E4,         Input::Favorite};
 
   elementsN(codes);
   size_t i;

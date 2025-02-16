@@ -39,7 +39,7 @@
 #include <unordered_map>
 #include <vector>
 
-#define BUTTON_CODE_COUNT 26
+#define BUTTON_CODE_COUNT 36
 
 #define m(vk, sc) {vk, SDL_SCANCODE_##sc}
 std::unordered_map<int, int> vKeyToScancode{
@@ -509,10 +509,10 @@ static elementsN(staticKbBindings);
 
 /* Maps ButtonCode enum values to indices
  * in the button state array */
-static const int mapToIndex[] = {0,  0,  1, 0,  2,  0,  3,  0,  4,  0, 0,
-                                 5,  6,  7, 8,  9,  10, 11, 12, 0,  0, 13,
-                                 14, 15, 0, 16, 17, 18, 19, 20, 0,  0, 0,
-                                 0,  0,  0, 0,  0,  21, 22, 23, 24, 25};
+static const int mapToIndex[] = {
+    0,  0, 1,  0,  2,  0,  3,  0,  4,  0,  0,  5,  6,  7,  8,  9, 10, 11,
+    12, 0, 0,  13, 14, 15, 0,  16, 17, 18, 19, 20, 0,  0,  0,  0, 0,  0,
+    0,  0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 31, 32, 33, 34, 35};
 
 static elementsN(mapToIndex);
 

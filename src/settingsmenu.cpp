@@ -38,7 +38,7 @@
 #include <algorithm>
 #include <assert.h>
 
-const Vec2i winSize(700, 500);
+const Vec2i winSize(1064, 628);
 
 const uint8_t cBgNorm = 50;
 const uint8_t cBgDark = 20;
@@ -60,11 +60,32 @@ struct VButton {
   Input::ButtonCode code;
   const char *str;
 } static vButtons[] = {
-    BTN_STRING(Up),         BTN_STRING(Left),  BTN_STRING(Action),
-    BTN_STRING(Cancel),     BTN_STRING(Menu),  BTN_STRING(L),
+    BTN_STRING(Up),                   // 1
+    BTN_STRING(Left),                 // 2
+    BTN_STRING(Right),                // 3
+    BTN_STRING(Down),                 // 4
+    BTN_STRING(Action),               // 5
+    BTN_STRING(Cancel),               // 6
+    {Input::ToggleChat, "Hide chat"}, // 7
+    BTN_STRING(Favorite),             // 8
 
-    BTN_STRING(Down),       BTN_STRING(Right), BTN_STRING(Run),
-    BTN_STRING(Deactivate), BTN_STRING(Items), BTN_STRING(R),
+    BTN_STRING(Items),      // 1
+    BTN_STRING(Menu),       // 2
+    BTN_STRING(Run),        // 3
+    BTN_STRING(L),          // 4
+    BTN_STRING(R),          // 5
+    BTN_STRING(Deactivate), // 6
+    BTN_STRING(Chat),       // 7
+    BTN_STRING(Map),        // 8
+
+    BTN_STRING(Playing),          // 1
+    {Input::E1, "Emote 1"},       // 2
+    {Input::E2, "Emote 2"},       // 3
+    {Input::E3, "Emote 3"},       // 4
+    {Input::E4, "Emote 4"},       // 5
+    {Input::MSG, "Send message"}, // 6
+    {Input::L, "Statistics"},     // 7
+    {Input::MSG, "Message"},      // 8
 };
 
 static elementsN(vButtons);
@@ -792,8 +813,8 @@ SettingsMenu::SettingsMenu(RGSSThreadData &rtData) {
 
   p->rgb = &p->winSurf->format;
 
-  const size_t layoutW = 2;
-  const size_t layoutH = 6;
+  const size_t layoutW = 3;
+  const size_t layoutH = 8;
   assert(layoutW * layoutH == vButtonsN);
 
   const int bWidgetW = winSize.x / layoutW;

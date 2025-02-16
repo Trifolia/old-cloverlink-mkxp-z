@@ -21,10 +21,10 @@
 
 #include <SDL3/SDL_joystick.h>
 
-
 #include "eventthread.h"
 
 #include "binding-util.h"
+#include "input/input.h"
 #include "ruby/internal/intern/array.h"
 #include "ruby/internal/intern/string.h"
 #include "ruby/internal/intern/variable.h"
@@ -32,378 +32,381 @@
 #include "ruby/internal/symbol.h"
 #include "ruby/internal/value_type.h"
 #include "ruby/internal/variable.h"
-#include "util/exception.h"
-#include "input/input.h"
 #include "sharedstate.h"
 #include "src/util/util.h"
+#include "util/exception.h"
 
 RB_METHOD(inputDelta) {
-    RB_UNUSED_PARAM;
-    
-    return rb_float_new(shState->input().getDelta());
+  RB_UNUSED_PARAM;
+
+  return rb_float_new(shState->input().getDelta());
 }
 
 RB_METHOD_GUARD(inputUpdate) {
-    RB_UNUSED_PARAM;
-    
-    shState->input().update();
-    
-    return Qnil;
+  RB_UNUSED_PARAM;
+
+  shState->input().update();
+
+  return Qnil;
 }
 RB_METHOD_GUARD_END
 
 static int getButtonArg(VALUE *argv) {
-    int num;
-    
-    if (FIXNUM_P(*argv)) {
-        num = FIX2INT(*argv);
-    } else if (SYMBOL_P(*argv) && rgssVer >= 3) {
-        VALUE symHash = getRbData()->buttoncodeHash;
+  int num;
+
+  if (FIXNUM_P(*argv)) {
+    num = FIX2INT(*argv);
+  } else if (SYMBOL_P(*argv) && rgssVer >= 3) {
+    VALUE symHash = getRbData()->buttoncodeHash;
 #if RAPI_FULL > 187
-        num = FIX2INT(rb_hash_lookup2(symHash, *argv, INT2FIX(Input::None)));
+    num = FIX2INT(rb_hash_lookup2(symHash, *argv, INT2FIX(Input::None)));
 #else
-        VALUE res = rb_hash_aref(symHash, *argv);
-        if (!NIL_P(res))
-            num = FIX2INT(res);
-        else
-            num = Input::None;
+    VALUE res = rb_hash_aref(symHash, *argv);
+    if (!NIL_P(res))
+      num = FIX2INT(res);
+    else
+      num = Input::None;
 #endif
-    } else {
-        // FIXME: RMXP allows only few more types that
-        // don't make sense (symbols in pre 3, floats)
-        num = 0;
-    }
-    
-    return num;
+  } else {
+    // FIXME: RMXP allows only few more types that
+    // don't make sense (symbols in pre 3, floats)
+    num = 0;
+  }
+
+  return num;
 }
 
 static int getScancodeArg(VALUE *argv) {
-    const char *scancode = rb_id2name(SYM2ID(*argv));
-    int code{};
-    try {
-        code = strToScancode[scancode];
-    } catch (...) {
-        throw Exception(Exception::RuntimeError, "%s is not a valid name of an SDL scancode.", scancode);
-    }
-    
-    return code;
+  const char *scancode = rb_id2name(SYM2ID(*argv));
+  int code{};
+  try {
+    code = strToScancode[scancode];
+  } catch (...) {
+    throw Exception(Exception::RuntimeError,
+                    "%s is not a valid name of an SDL scancode.", scancode);
+  }
+
+  return code;
 }
 
 static int getControllerButtonArg(VALUE *argv) {
-    const char *button = rb_id2name(SYM2ID(*argv));
-    int btn{};
-    try {
-        btn = strToGCButton[button];
-    } catch (...) {
-        throw Exception(Exception::RuntimeError, "%s is not a valid name of an SDL Controller button.", button);
-    }
-    
-    return btn;
+  const char *button = rb_id2name(SYM2ID(*argv));
+  int btn{};
+  try {
+    btn = strToGCButton[button];
+  } catch (...) {
+    throw Exception(Exception::RuntimeError,
+                    "%s is not a valid name of an SDL Controller button.",
+                    button);
+  }
+
+  return btn;
 }
 
 RB_METHOD(inputPress) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+  RB_UNUSED_PARAM;
 
-    // FIXME: HACK: workaround to allow for using scancodes in press?
-    if (RB_TYPE_P(button, T_SYMBOL))
-    {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isPressedEx(num, 0));
-    }
+  rb_check_argc(argc, 1);
 
-    int num = getButtonArg(&button);
-    
-    return rb_bool_new(shState->input().isPressed(num));
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  // FIXME: HACK: workaround to allow for using scancodes in press?
+  if (RB_TYPE_P(button, T_SYMBOL)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isPressedEx(num, 0));
+  }
+
+  int num = getButtonArg(&button);
+
+  return rb_bool_new(shState->input().isPressed(num));
 }
 
 RB_METHOD(inputTrigger) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+  RB_UNUSED_PARAM;
 
-    // FIXME: HACK: workaround to allow for using scancodes in trigger?
-    if (RB_TYPE_P(button, T_SYMBOL))
-    {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isTriggeredEx(num, 0));
-    }
-    
-    int num = getButtonArg(&button);
-    
-    return rb_bool_new(shState->input().isTriggered(num));
+  rb_check_argc(argc, 1);
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  // FIXME: HACK: workaround to allow for using scancodes in trigger?
+  if (RB_TYPE_P(button, T_SYMBOL)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isTriggeredEx(num, 0));
+  }
+
+  int num = getButtonArg(&button);
+
+  return rb_bool_new(shState->input().isTriggered(num));
 }
 
 RB_METHOD(inputRepeat) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+  RB_UNUSED_PARAM;
 
-    // FIXME: HACK: workaround to allow for using scancodes in press?
-    if (RB_TYPE_P(button, T_SYMBOL))
-    {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isRepeatedEx(num, 0));
-    }
-    
-    int num = getButtonArg(&button);
-    
-    return rb_bool_new(shState->input().isRepeated(num));
+  rb_check_argc(argc, 1);
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  // FIXME: HACK: workaround to allow for using scancodes in press?
+  if (RB_TYPE_P(button, T_SYMBOL)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isRepeatedEx(num, 0));
+  }
+
+  int num = getButtonArg(&button);
+
+  return rb_bool_new(shState->input().isRepeated(num));
 }
 
 RB_METHOD(inputRelease) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+  RB_UNUSED_PARAM;
 
-    // FIXME: HACK: workaround to allow for using scancodes in press?
-    if (RB_TYPE_P(button, T_SYMBOL))
-    {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isReleasedEx(num, 0));
-    }
-    
-    int num = getButtonArg(&button);
-    
-    return rb_bool_new(shState->input().isReleased(num));
+  rb_check_argc(argc, 1);
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  // FIXME: HACK: workaround to allow for using scancodes in press?
+  if (RB_TYPE_P(button, T_SYMBOL)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isReleasedEx(num, 0));
+  }
+
+  int num = getButtonArg(&button);
+
+  return rb_bool_new(shState->input().isReleased(num));
 }
 
 RB_METHOD(inputCount) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    int num = getButtonArg(&button);
-    
-    return UINT2NUM(shState->input().count(num));
+  RB_UNUSED_PARAM;
+
+  rb_check_argc(argc, 1);
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  int num = getButtonArg(&button);
+
+  return UINT2NUM(shState->input().count(num));
 }
 
 RB_METHOD(inputRepeatTime) {
-    RB_UNUSED_PARAM;
-    
-    rb_check_argc(argc, 1);
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    int num = getButtonArg(&button);
-    
-    return rb_float_new(shState->input().repeatTime(num));
+  RB_UNUSED_PARAM;
+
+  rb_check_argc(argc, 1);
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  int num = getButtonArg(&button);
+
+  return rb_float_new(shState->input().repeatTime(num));
 }
 
 RB_METHOD_GUARD(inputPressEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isPressedEx(num, 0));
-    }
-    
-    return rb_bool_new(shState->input().isPressedEx(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isPressedEx(num, 0));
+  }
+
+  return rb_bool_new(shState->input().isPressedEx(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputTriggerEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isTriggeredEx(num, 0));
-    }
-    
-    return rb_bool_new(shState->input().isTriggeredEx(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isTriggeredEx(num, 0));
+  }
+
+  return rb_bool_new(shState->input().isTriggeredEx(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputRepeatEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isRepeatedEx(num, 0));
-    }
-    
-    return rb_bool_new(shState->input().isRepeatedEx(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isRepeatedEx(num, 0));
+  }
+
+  return rb_bool_new(shState->input().isRepeatedEx(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputReleaseEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return rb_bool_new(shState->input().isReleasedEx(num, 0));
-    }
-    
-    return rb_bool_new(shState->input().isReleasedEx(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return rb_bool_new(shState->input().isReleasedEx(num, 0));
+  }
+
+  return rb_bool_new(shState->input().isReleasedEx(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputCountEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return UINT2NUM(shState->input().repeatcount(num, 0));
-    }
-    
-    return UINT2NUM(shState->input().repeatcount(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return UINT2NUM(shState->input().repeatcount(num, 0));
+  }
+
+  return UINT2NUM(shState->input().repeatcount(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputRepeatTimeEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getScancodeArg(&button);
-        return rb_float_new(shState->input().repeatTimeEx(num, 0));
-    }
-    
-    return rb_float_new(shState->input().repeatTimeEx(NUM2INT(button), 1));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getScancodeArg(&button);
+    return rb_float_new(shState->input().repeatTimeEx(num, 0));
+  }
+
+  return rb_float_new(shState->input().repeatTimeEx(NUM2INT(button), 1));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD(inputDir4) {
-    RB_UNUSED_PARAM;
-    
-    return rb_fix_new(shState->input().dir4Value());
+  RB_UNUSED_PARAM;
+
+  return rb_fix_new(shState->input().dir4Value());
 }
 
 RB_METHOD(inputDir8) {
-    RB_UNUSED_PARAM;
-    
-    return rb_fix_new(shState->input().dir8Value());
+  RB_UNUSED_PARAM;
+
+  return rb_fix_new(shState->input().dir8Value());
 }
 
 /* Non-standard extensions */
 RB_METHOD(inputMouseX) {
-    RB_UNUSED_PARAM;
-    
-    return rb_fix_new(shState->input().mouseX());
+  RB_UNUSED_PARAM;
+
+  return rb_fix_new(shState->input().mouseX());
 }
 
 RB_METHOD(inputMouseY) {
-    RB_UNUSED_PARAM;
-    
-    return rb_fix_new(shState->input().mouseY());
+  RB_UNUSED_PARAM;
+
+  return rb_fix_new(shState->input().mouseY());
 }
 
 RB_METHOD(inputScrollV) {
-    RB_UNUSED_PARAM;
-    
-    return rb_fix_new(shState->input().scrollV());
+  RB_UNUSED_PARAM;
+
+  return rb_fix_new(shState->input().scrollV());
 }
 
 RB_METHOD(inputMouseInWindow) {
-    RB_UNUSED_PARAM;
-    
-    return rb_bool_new(shState->input().mouseInWindow());
+  RB_UNUSED_PARAM;
+
+  return rb_bool_new(shState->input().mouseInWindow());
 }
 
 RB_METHOD(inputRawKeyStates) {
-    RB_UNUSED_PARAM;
-    
-    VALUE ret = rb_ary_new();
+  RB_UNUSED_PARAM;
 
-    uint8_t *states = shState->input().rawKeyStates();
-    
-    for (unsigned int i = 0; i < shState->input().rawKeyStatesLength(); i++)
-        rb_ary_push(ret, rb_bool_new(states[i]));
-    
-    return ret;
+  VALUE ret = rb_ary_new();
+
+  uint8_t *states = shState->input().rawKeyStates();
+
+  for (unsigned int i = 0; i < shState->input().rawKeyStatesLength(); i++)
+    rb_ary_push(ret, rb_bool_new(states[i]));
+
+  return ret;
 }
 
 #define M_SYMBOL(x) ID2SYM(rb_intern(x))
 #define POWERCASE(v, c)                                                        \
-case SDL_JOYSTICK_POWER_##c:                                                 \
-v = M_SYMBOL(#c);                                                          \
-break;
+  case SDL_JOYSTICK_POWER_##c:                                                 \
+    v = M_SYMBOL(#c);                                                          \
+    break;
 
 RB_METHOD(inputControllerConnected) {
-    RB_UNUSED_PARAM;
-    
-    return rb_bool_new(shState->input().getControllerConnected());
+  RB_UNUSED_PARAM;
+
+  return rb_bool_new(shState->input().getControllerConnected());
 }
 
 RB_METHOD(inputControllerName) {
-    RB_UNUSED_PARAM;
-    
-    if (!shState->input().getControllerConnected())
-        return rb_utf8_str_new_cstr("");
-    
-    return rb_utf8_str_new_cstr(shState->input().getControllerName());
+  RB_UNUSED_PARAM;
+
+  if (!shState->input().getControllerConnected())
+    return rb_utf8_str_new_cstr("");
+
+  return rb_utf8_str_new_cstr(shState->input().getControllerName());
 }
 
 RB_METHOD(inputControllerPowerLevel) {
-    RB_UNUSED_PARAM;
-    
-    VALUE ret;
-    
-    if (!shState->input().getControllerConnected())
-        ret = M_SYMBOL("UNKNOWN");
-    
-    // FIXME: NEED TO IMPLEMENT THIS!
-    // switch (shState->input().getControllerPowerLevel()) {
-    //         POWERCASE(ret, MAX);
-    //         POWERCASE(ret, WIRED);
-    //         POWERCASE(ret, FULL);
-    //         POWERCASE(ret, MEDIUM);
-    //         POWERCASE(ret, LOW);
-    //         POWERCASE(ret, EMPTY);
-            
-    //     default:
-             ret = M_SYMBOL("UNKNOWN");
-    //         break;
-    // }
-    
-    return ret;
+  RB_UNUSED_PARAM;
+
+  VALUE ret;
+
+  if (!shState->input().getControllerConnected())
+    ret = M_SYMBOL("UNKNOWN");
+
+  // FIXME: NEED TO IMPLEMENT THIS!
+  // switch (shState->input().getControllerPowerLevel()) {
+  //         POWERCASE(ret, MAX);
+  //         POWERCASE(ret, WIRED);
+  //         POWERCASE(ret, FULL);
+  //         POWERCASE(ret, MEDIUM);
+  //         POWERCASE(ret, LOW);
+  //         POWERCASE(ret, EMPTY);
+
+  //     default:
+  ret = M_SYMBOL("UNKNOWN");
+  //         break;
+  // }
+
+  return ret;
 }
 
-#define AXISFUNC(n, ax1, ax2) \
-RB_METHOD(inputControllerGet##n##Axis) {\
-RB_UNUSED_PARAM;\
-VALUE ret = rb_ary_new(); \
-if (!shState->eThread().getControllerConnected()) {\
-rb_ary_push(ret, rb_float_new(0)); rb_ary_push(ret, rb_float_new(0)); \
-}\
-rb_ary_push(ret, rb_float_new(shState->input().getControllerAxisValue(SDL_GAMEPAD_AXIS_##ax1) / 32767.0)); \
-rb_ary_push(ret, rb_float_new(shState->input().getControllerAxisValue(SDL_GAMEPAD_AXIS_##ax2) / 32767.0)); \
-return ret; \
-}
+#define AXISFUNC(n, ax1, ax2)                                                  \
+  RB_METHOD(inputControllerGet##n##Axis) {                                     \
+    RB_UNUSED_PARAM;                                                           \
+    VALUE ret = rb_ary_new();                                                  \
+    if (!shState->eThread().getControllerConnected()) {                        \
+      rb_ary_push(ret, rb_float_new(0));                                       \
+      rb_ary_push(ret, rb_float_new(0));                                       \
+    }                                                                          \
+    rb_ary_push(ret, rb_float_new(shState->input().getControllerAxisValue(     \
+                                      SDL_GAMEPAD_AXIS_##ax1) /                \
+                                  32767.0));                                   \
+    rb_ary_push(ret, rb_float_new(shState->input().getControllerAxisValue(     \
+                                      SDL_GAMEPAD_AXIS_##ax2) /                \
+                                  32767.0));                                   \
+    return ret;                                                                \
+  }
 
 AXISFUNC(Left, LEFTX, LEFTY);
 AXISFUNC(Right, RIGHTX, RIGHTY);
@@ -413,169 +416,170 @@ AXISFUNC(Trigger, LEFT_TRIGGER, RIGHT_TRIGGER);
 #undef M_SYMBOL
 
 RB_METHOD_GUARD(inputControllerPressEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_bool_new(shState->input().controllerIsPressedEx(num));
-    }
-    
-    return rb_bool_new(shState->input().controllerIsPressedEx(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_bool_new(shState->input().controllerIsPressedEx(num));
+  }
+
+  return rb_bool_new(shState->input().controllerIsPressedEx(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputControllerTriggerEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_bool_new(shState->input().controllerIsTriggeredEx(num));
-    }
-    
-    return rb_bool_new(shState->input().controllerIsTriggeredEx(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_bool_new(shState->input().controllerIsTriggeredEx(num));
+  }
+
+  return rb_bool_new(shState->input().controllerIsTriggeredEx(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputControllerRepeatEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_bool_new(shState->input().controllerIsRepeatedEx(num));
-    }
-    
-    return rb_bool_new(shState->input().controllerIsRepeatedEx(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_bool_new(shState->input().controllerIsRepeatedEx(num));
+  }
+
+  return rb_bool_new(shState->input().controllerIsRepeatedEx(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputControllerReleaseEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_bool_new(shState->input().controllerIsReleasedEx(num));
-    }
-    
-    return rb_bool_new(shState->input().controllerIsReleasedEx(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_bool_new(shState->input().controllerIsReleasedEx(num));
+  }
+
+  return rb_bool_new(shState->input().controllerIsReleasedEx(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputControllerCountEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_bool_new(shState->input().controllerRepeatcount(num));
-    }
-    
-    return rb_bool_new(shState->input().controllerRepeatcount(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_bool_new(shState->input().controllerRepeatcount(num));
+  }
+
+  return rb_bool_new(shState->input().controllerRepeatcount(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputControllerRepeatTimeEx) {
-    RB_UNUSED_PARAM;
-    
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-    
-    if (SYMBOL_P(button)) {
-        int num = getControllerButtonArg(&button);
-        return rb_float_new(shState->input().controllerRepeatTimeEx(num));
-    }
-    
-    return rb_float_new(shState->input().controllerRepeatTimeEx(NUM2INT(button)));
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  if (SYMBOL_P(button)) {
+    int num = getControllerButtonArg(&button);
+    return rb_float_new(shState->input().controllerRepeatTimeEx(num));
+  }
+
+  return rb_float_new(shState->input().controllerRepeatTimeEx(NUM2INT(button)));
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD(inputControllerRawButtonStates) {
-    RB_UNUSED_PARAM;
-    
-    VALUE ret = rb_ary_new();
-    uint8_t *states = shState->input().rawButtonStates();
-    
-    for (unsigned int i = 0; i < shState->input().rawButtonStatesLength(); i++)
-        rb_ary_push(ret, rb_bool_new(states[i]));
-    
-    return ret;
+  RB_UNUSED_PARAM;
+
+  VALUE ret = rb_ary_new();
+  uint8_t *states = shState->input().rawButtonStates();
+
+  for (unsigned int i = 0; i < shState->input().rawButtonStatesLength(); i++)
+    rb_ary_push(ret, rb_bool_new(states[i]));
+
+  return ret;
 }
 
 RB_METHOD(inputControllerRawAxes) {
-    RB_UNUSED_PARAM;
-    
-    VALUE ret = rb_ary_new();
-    int16_t *states = shState->input().rawAxes();
-    
-    for (unsigned int i = 0; i < shState->input().rawAxesLength(); i++)
-        rb_ary_push(ret, rb_float_new(states[i] / 32767.0));
-    
-    return ret;
+  RB_UNUSED_PARAM;
+
+  VALUE ret = rb_ary_new();
+  int16_t *states = shState->input().rawAxes();
+
+  for (unsigned int i = 0; i < shState->input().rawAxesLength(); i++)
+    rb_ary_push(ret, rb_float_new(states[i] / 32767.0));
+
+  return ret;
 }
 
 RB_METHOD(inputGetMode) {
-    RB_UNUSED_PARAM;
-    
-    return rb_bool_new(shState->input().getTextInputMode());
+  RB_UNUSED_PARAM;
+
+  return rb_bool_new(shState->input().getTextInputMode());
 }
 
 RB_METHOD(inputSetMode) {
-    RB_UNUSED_PARAM;
-    
-    bool mode;
-    rb_get_args(argc, argv, "b", &mode RB_ARG_END);
-    
-    shState->input().setTextInputMode(mode);
-    
-    return mode;
+  RB_UNUSED_PARAM;
+
+  bool mode;
+  rb_get_args(argc, argv, "b", &mode RB_ARG_END);
+
+  shState->input().setTextInputMode(mode);
+
+  return mode;
 }
 
 RB_METHOD(inputGets) {
-    RB_UNUSED_PARAM;
-    shState->eThread().lockText(true);
-    VALUE ret = rb_utf8_str_new_cstr(shState->input().getText());
-    shState->input().clearText();
-    shState->eThread().lockText(false);
-    return ret;
+  RB_UNUSED_PARAM;
+  shState->eThread().lockText(true);
+  VALUE ret = rb_utf8_str_new_cstr(shState->input().getText());
+  shState->input().clearText();
+  shState->eThread().lockText(false);
+  return ret;
 }
 
 RB_METHOD_GUARD(inputGetClipboard) {
-    RB_UNUSED_PARAM;
-    return rb_utf8_str_new_cstr(shState->input().getClipboardText());
+  RB_UNUSED_PARAM;
+  return rb_utf8_str_new_cstr(shState->input().getClipboardText());
 }
 RB_METHOD_GUARD_END
 
 RB_METHOD_GUARD(inputSetClipboard) {
-    RB_UNUSED_PARAM;
-    
-    VALUE str;
-    rb_scan_args(argc, argv, "1", &str);
-    
-    SafeStringValue(str);
-    
-    shState->input().setClipboardText(RSTRING_PTR(str));
-    
-    return str;
+  RB_UNUSED_PARAM;
+
+  VALUE str;
+  rb_scan_args(argc, argv, "1", &str);
+
+  SafeStringValue(str);
+
+  shState->input().setClipboardText(RSTRING_PTR(str));
+
+  return str;
 }
 RB_METHOD_GUARD_END
 
 struct {
-    const char *str;
-    Input::ButtonCode val;
-} static buttonCodes[] = {{"DOWN", Input::Down},
+  const char *str;
+  Input::ButtonCode val;
+} static buttonCodes[] = {
+    {"DOWN", Input::Down},
     {"LEFT", Input::Left},
     {"RIGHT", Input::Right},
     {"UP", Input::Up},
@@ -595,520 +599,535 @@ struct {
     {"F7", Input::F7},
     {"F8", Input::F8},
     {"F9", Input::F9},
-    
+
     {"MOUSELEFT", Input::MouseLeft},
     {"MOUSEMIDDLE", Input::MouseMiddle},
     {"MOUSERIGHT", Input::MouseRight},
     {"MOUSEX1", Input::MouseX1},
-    {"MOUSEX2", Input::MouseX2}
+    {"MOUSEX2", Input::MouseX2},
+
+    // CLOVERLINK KEYBINDS
+
+    {"CHAT", Input::Chat},
+    {"TOGGLECHAT", Input::ToggleChat},
+    {"MAP", Input::Map},
+    {"PLAYING", Input::Playing},
+    {"SENDMSG", Input::MSG},
+    {"E1", Input::E1},
+    {"E2", Input::E2},
+    {"E3", Input::E3},
+    {"E4", Input::E4},
+    {"FAVORITE", Input::Favorite},
 };
 
 static elementsN(buttonCodes);
 
-RB_METHOD(inputQuit)
-{
-	RB_UNUSED_PARAM;
+RB_METHOD(inputQuit) {
+  RB_UNUSED_PARAM;
 
-	return rb_bool_new(shState->input().hasQuit());
+  return rb_bool_new(shState->input().hasQuit());
 }
 
-#define BIND_SDL_SCANCODE(code) rb_const_set(module, rb_intern("KEY_" #code), rb_id2sym(rb_intern(#code)));
-
+#define BIND_SDL_SCANCODE(code)                                                \
+  rb_const_set(module, rb_intern("KEY_" #code), rb_id2sym(rb_intern(#code)));
 
 RB_METHOD(inputTextInputCompat) {
-    RB_UNUSED_PARAM;
+  RB_UNUSED_PARAM;
 
-    shState->eThread().lockText(true);
-    VALUE text = rb_utf8_str_new_cstr(shState->input().getText());
-    shState->eThread().lockText(false);
+  shState->eThread().lockText(true);
+  VALUE text = rb_utf8_str_new_cstr(shState->input().getText());
+  shState->eThread().lockText(false);
 
-    return rb_str_dup(text);
+  return rb_str_dup(text);
 }
 
 RB_METHOD(inputSetTextInputCompat) {
-    RB_UNUSED_PARAM;
+  RB_UNUSED_PARAM;
 
-    const char* str;
-    rb_get_args(argc, argv, "z", &str RB_ARG_END);
+  const char *str;
+  rb_get_args(argc, argv, "z", &str RB_ARG_END);
 
-    shState->eThread().lockText(true);
-    shState->input().setText(str);
-    shState->eThread().lockText(false);
+  shState->eThread().lockText(true);
+  shState->input().setText(str);
+  shState->eThread().lockText(false);
 
-    return Qnil;
+  return Qnil;
 }
 
 RB_METHOD(inputStartTextInputCompat) {
-    RB_UNUSED_PARAM;
+  RB_UNUSED_PARAM;
 
-    int _limit;
-    rb_get_args(argc, argv, "|i", &_limit RB_ARG_END);
+  int _limit;
+  rb_get_args(argc, argv, "|i", &_limit RB_ARG_END);
 
-    shState->input().setTextInputMode(true);
+  shState->input().setTextInputMode(true);
 
-    return Qnil;
+  return Qnil;
 }
 
 RB_METHOD(inputStopTextInputCompat) {
-    RB_UNUSED_PARAM;
+  RB_UNUSED_PARAM;
 
-    shState->eThread().lockText(true);
-    shState->input().clearText();
-    shState->eThread().lockText(false);
+  shState->eThread().lockText(true);
+  shState->input().clearText();
+  shState->eThread().lockText(false);
 
-    shState->input().setTextInputMode(false);
+  shState->input().setTextInputMode(false);
 
-    return Qnil;
+  return Qnil;
 }
 
-// FIXME modshot added all scancodes to this too, so we should do that for compatibility
-RB_METHOD(inputCompatGetAllPressed)
-{
-    RB_UNUSED_PARAM;
-	VALUE res = rb_ary_new();
-    for (size_t i = 0; i < buttonCodesN; i++) {
-		if (shState->input().isPressed(buttonCodes[i].val)) {
-            rb_ary_push(res, INT2FIX(buttonCodes[i].val));
-		}
-	}
-	return res;
-}
-
-RB_METHOD(inputCompatGetAllTriggered)
-{
-    RB_UNUSED_PARAM;
-	VALUE res = rb_ary_new();
-    for (size_t i = 0; i < buttonCodesN; i++) {
-		if (shState->input().isTriggered(buttonCodes[i].val)) {
-            rb_ary_push(res, INT2FIX(buttonCodes[i].val));
-		}
-	}
-	return res;
-}
-
-RB_METHOD(inputCompatGetAllRepeated)
-{
-    RB_UNUSED_PARAM;
-	VALUE res = rb_ary_new();
-    for (size_t i = 0; i < buttonCodesN; i++) {
-		if (shState->input().isRepeated(buttonCodes[i].val)) {
-            rb_ary_push(res, INT2FIX(buttonCodes[i].val));
-		}
-	}
-	return res;
-}
-
-RB_METHOD(inputCompatSetAllPressedUnPressed)
-{
-    RB_UNUSED_PARAM;
-    for (size_t i = 0; i < buttonCodesN; i++) {
-        if (shState->input().isPressed(buttonCodes[i].val)) {
-            shState->input().unsetKey(buttonCodes[i].val);
-        }
+// FIXME modshot added all scancodes to this too, so we should do that for
+// compatibility
+RB_METHOD(inputCompatGetAllPressed) {
+  RB_UNUSED_PARAM;
+  VALUE res = rb_ary_new();
+  for (size_t i = 0; i < buttonCodesN; i++) {
+    if (shState->input().isPressed(buttonCodes[i].val)) {
+      rb_ary_push(res, INT2FIX(buttonCodes[i].val));
     }
-    return Qnil;
+  }
+  return res;
 }
 
-RB_METHOD(inputCompatSetAllUnPressed)
-{
-    RB_UNUSED_PARAM;
-    for (size_t i = 0; i < buttonCodesN; i++) {
-        shState->input().unsetKey(buttonCodes[i].val);		
+RB_METHOD(inputCompatGetAllTriggered) {
+  RB_UNUSED_PARAM;
+  VALUE res = rb_ary_new();
+  for (size_t i = 0; i < buttonCodesN; i++) {
+    if (shState->input().isTriggered(buttonCodes[i].val)) {
+      rb_ary_push(res, INT2FIX(buttonCodes[i].val));
     }
-    return Qnil;
+  }
+  return res;
 }
 
-RB_METHOD(inputCompatSetKey)
-{
-    RB_UNUSED_PARAM;
-
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-
-    int num = getButtonArg(&button);
-    shState->input().setKey(num);
-
-    return Qnil;
+RB_METHOD(inputCompatGetAllRepeated) {
+  RB_UNUSED_PARAM;
+  VALUE res = rb_ary_new();
+  for (size_t i = 0; i < buttonCodesN; i++) {
+    if (shState->input().isRepeated(buttonCodes[i].val)) {
+      rb_ary_push(res, INT2FIX(buttonCodes[i].val));
+    }
+  }
+  return res;
 }
 
-RB_METHOD(inputCompatUnsetKey)
-{
-    RB_UNUSED_PARAM;
-
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-
-    int num = getButtonArg(&button);
-    shState->input().unsetKey(num);
-
-    return Qnil;
+RB_METHOD(inputCompatSetAllPressedUnPressed) {
+  RB_UNUSED_PARAM;
+  for (size_t i = 0; i < buttonCodesN; i++) {
+    if (shState->input().isPressed(buttonCodes[i].val)) {
+      shState->input().unsetKey(buttonCodes[i].val);
+    }
+  }
+  return Qnil;
 }
-RB_METHOD(inputCompatSetKeyPressed)
-{
-    RB_UNUSED_PARAM;
 
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
-
-    int num = getButtonArg(&button);
-    shState->input().setPressed(num);
-
-    return Qnil;
+RB_METHOD(inputCompatSetAllUnPressed) {
+  RB_UNUSED_PARAM;
+  for (size_t i = 0; i < buttonCodesN; i++) {
+    shState->input().unsetKey(buttonCodes[i].val);
+  }
+  return Qnil;
 }
-RB_METHOD(inputCompatSetKeyTriggered)
-{
-    RB_UNUSED_PARAM;
 
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+RB_METHOD(inputCompatSetKey) {
+  RB_UNUSED_PARAM;
 
-    int num = getButtonArg(&button);
-    shState->input().setTriggered(num);
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
 
-    return Qnil;
+  int num = getButtonArg(&button);
+  shState->input().setKey(num);
+
+  return Qnil;
 }
-RB_METHOD(inputCompatSetKeyRepeated)
-{
-    RB_UNUSED_PARAM;
 
-    VALUE button;
-    rb_scan_args(argc, argv, "1", &button);
+RB_METHOD(inputCompatUnsetKey) {
+  RB_UNUSED_PARAM;
 
-    int num = getButtonArg(&button);
-    shState->input().setRepeated(num);
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
 
-    return Qnil;
+  int num = getButtonArg(&button);
+  shState->input().unsetKey(num);
+
+  return Qnil;
+}
+RB_METHOD(inputCompatSetKeyPressed) {
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  int num = getButtonArg(&button);
+  shState->input().setPressed(num);
+
+  return Qnil;
+}
+RB_METHOD(inputCompatSetKeyTriggered) {
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  int num = getButtonArg(&button);
+  shState->input().setTriggered(num);
+
+  return Qnil;
+}
+RB_METHOD(inputCompatSetKeyRepeated) {
+  RB_UNUSED_PARAM;
+
+  VALUE button;
+  rb_scan_args(argc, argv, "1", &button);
+
+  int num = getButtonArg(&button);
+  shState->input().setRepeated(num);
+
+  return Qnil;
 }
 
 void inputBindingInit() {
-    VALUE module = rb_define_module("Input");
-    
-    _rb_define_module_function(module, "delta", inputDelta);
-    _rb_define_module_function(module, "update", inputUpdate);
-    _rb_define_module_function(module, "press?", inputPress);
-    _rb_define_module_function(module, "trigger?", inputTrigger);
-    _rb_define_module_function(module, "repeat?", inputRepeat);
-    _rb_define_module_function(module, "release?", inputRelease);
-    _rb_define_module_function(module, "count", inputCount);
-    _rb_define_module_function(module, "time?", inputRepeatTime);
-    _rb_define_module_function(module, "pressex?", inputPressEx);
-    _rb_define_module_function(module, "triggerex?", inputTriggerEx);
-    _rb_define_module_function(module, "repeatex?", inputRepeatEx);
-    _rb_define_module_function(module, "releaseex?", inputReleaseEx);
-    _rb_define_module_function(module, "repeatcount", inputCountEx);
-    _rb_define_module_function(module, "timeex?", inputRepeatTimeEx);
-    _rb_define_module_function(module, "dir4", inputDir4);
-    _rb_define_module_function(module, "dir8", inputDir8);
-    
-    _rb_define_module_function(module, "mouse_x", inputMouseX);
-    _rb_define_module_function(module, "mouse_y", inputMouseY);
-    _rb_define_module_function(module, "scroll_v", inputScrollV);
-    _rb_define_module_function(module, "mouse_in_window", inputMouseInWindow);
-    _rb_define_module_function(module, "mouse_in_window?", inputMouseInWindow);
-    
-    _rb_define_module_function(module, "raw_key_states", inputRawKeyStates);
-    
-    VALUE submod = rb_define_module_under(module, "Controller");
-    _rb_define_module_function(submod, "connected?", inputControllerConnected);
-    _rb_define_module_function(submod, "name", inputControllerName);
-    _rb_define_module_function(submod, "power_level", inputControllerPowerLevel);
-    _rb_define_module_function(submod, "axes_left", inputControllerGetLeftAxis);
-    _rb_define_module_function(submod, "axes_right", inputControllerGetRightAxis);
-    _rb_define_module_function(submod, "axes_trigger", inputControllerGetTriggerAxis);
-    _rb_define_module_function(submod, "raw_button_states", inputControllerRawButtonStates);
-    _rb_define_module_function(submod, "raw_axes", inputControllerRawAxes);
-    _rb_define_module_function(submod, "pressex?", inputControllerPressEx);
-    _rb_define_module_function(submod, "triggerex?", inputControllerTriggerEx);
-    _rb_define_module_function(submod, "repeatex?", inputControllerRepeatEx);
-    _rb_define_module_function(submod, "releaseex?", inputControllerReleaseEx);
-    _rb_define_module_function(submod, "repeatcount", inputControllerCountEx);
-    _rb_define_module_function(submod, "timeex?", inputControllerRepeatTimeEx);
-    
-    _rb_define_module_function(module, "mkxp_z_text_input", inputGetMode);
-    _rb_define_module_function(module, "mkxp_z_text_input=", inputSetMode);
-    _rb_define_module_function(module, "mkxp_z_gets", inputGets);
-    
-    _rb_define_module_function(module, "clipboard", inputGetClipboard);
-    _rb_define_module_function(module, "clipboard=", inputSetClipboard);
+  VALUE module = rb_define_module("Input");
 
-    _rb_define_module_function(module, "quit?", inputQuit);
+  _rb_define_module_function(module, "delta", inputDelta);
+  _rb_define_module_function(module, "update", inputUpdate);
+  _rb_define_module_function(module, "press?", inputPress);
+  _rb_define_module_function(module, "trigger?", inputTrigger);
+  _rb_define_module_function(module, "repeat?", inputRepeat);
+  _rb_define_module_function(module, "release?", inputRelease);
+  _rb_define_module_function(module, "count", inputCount);
+  _rb_define_module_function(module, "time?", inputRepeatTime);
+  _rb_define_module_function(module, "pressex?", inputPressEx);
+  _rb_define_module_function(module, "triggerex?", inputTriggerEx);
+  _rb_define_module_function(module, "repeatex?", inputRepeatEx);
+  _rb_define_module_function(module, "releaseex?", inputReleaseEx);
+  _rb_define_module_function(module, "repeatcount", inputCountEx);
+  _rb_define_module_function(module, "timeex?", inputRepeatTimeEx);
+  _rb_define_module_function(module, "dir4", inputDir4);
+  _rb_define_module_function(module, "dir8", inputDir8);
 
-    _rb_define_module_function(module, "start_text_input", inputStartTextInputCompat);
-    _rb_define_module_function(module, "stop_text_input", inputStopTextInputCompat);
-    _rb_define_module_function(module, "text_input", inputTextInputCompat);
-    _rb_define_module_function(module, "set_text_input", inputSetTextInputCompat);
-    
-    if (rgssVer >= 3) {
-        VALUE symHash = rb_hash_new();
-        
-        for (size_t i = 0; i < buttonCodesN; ++i) {
-            ID sym = rb_intern(buttonCodes[i].str);
-            VALUE val = INT2FIX(buttonCodes[i].val);
-            
-            /* In RGSS3 all Input::XYZ constants are equal to :XYZ symbols,
-             * to be compatible with the previous convention */
-            rb_const_set(module, sym, ID2SYM(sym));
-            rb_hash_aset(symHash, ID2SYM(sym), val);
-        }
-        
-        rb_iv_set(module, "buttoncodes", symHash);
-        getRbData()->buttoncodeHash = symHash;
-    } else {
-        for (size_t i = 0; i < buttonCodesN; ++i) {
-            ID sym = rb_intern(buttonCodes[i].str);
-            VALUE val = INT2FIX(buttonCodes[i].val);
-            
-            rb_const_set(module, sym, val);
-        }
+  _rb_define_module_function(module, "mouse_x", inputMouseX);
+  _rb_define_module_function(module, "mouse_y", inputMouseY);
+  _rb_define_module_function(module, "scroll_v", inputScrollV);
+  _rb_define_module_function(module, "mouse_in_window", inputMouseInWindow);
+  _rb_define_module_function(module, "mouse_in_window?", inputMouseInWindow);
+
+  _rb_define_module_function(module, "raw_key_states", inputRawKeyStates);
+
+  VALUE submod = rb_define_module_under(module, "Controller");
+  _rb_define_module_function(submod, "connected?", inputControllerConnected);
+  _rb_define_module_function(submod, "name", inputControllerName);
+  _rb_define_module_function(submod, "power_level", inputControllerPowerLevel);
+  _rb_define_module_function(submod, "axes_left", inputControllerGetLeftAxis);
+  _rb_define_module_function(submod, "axes_right", inputControllerGetRightAxis);
+  _rb_define_module_function(submod, "axes_trigger",
+                             inputControllerGetTriggerAxis);
+  _rb_define_module_function(submod, "raw_button_states",
+                             inputControllerRawButtonStates);
+  _rb_define_module_function(submod, "raw_axes", inputControllerRawAxes);
+  _rb_define_module_function(submod, "pressex?", inputControllerPressEx);
+  _rb_define_module_function(submod, "triggerex?", inputControllerTriggerEx);
+  _rb_define_module_function(submod, "repeatex?", inputControllerRepeatEx);
+  _rb_define_module_function(submod, "releaseex?", inputControllerReleaseEx);
+  _rb_define_module_function(submod, "repeatcount", inputControllerCountEx);
+  _rb_define_module_function(submod, "timeex?", inputControllerRepeatTimeEx);
+
+  _rb_define_module_function(module, "mkxp_z_text_input", inputGetMode);
+  _rb_define_module_function(module, "mkxp_z_text_input=", inputSetMode);
+  _rb_define_module_function(module, "mkxp_z_gets", inputGets);
+
+  _rb_define_module_function(module, "clipboard", inputGetClipboard);
+  _rb_define_module_function(module, "clipboard=", inputSetClipboard);
+
+  _rb_define_module_function(module, "quit?", inputQuit);
+
+  _rb_define_module_function(module, "start_text_input",
+                             inputStartTextInputCompat);
+  _rb_define_module_function(module, "stop_text_input",
+                             inputStopTextInputCompat);
+  _rb_define_module_function(module, "text_input", inputTextInputCompat);
+  _rb_define_module_function(module, "set_text_input", inputSetTextInputCompat);
+
+  if (rgssVer >= 3) {
+    VALUE symHash = rb_hash_new();
+
+    for (size_t i = 0; i < buttonCodesN; ++i) {
+      ID sym = rb_intern(buttonCodes[i].str);
+      VALUE val = INT2FIX(buttonCodes[i].val);
+
+      /* In RGSS3 all Input::XYZ constants are equal to :XYZ symbols,
+       * to be compatible with the previous convention */
+      rb_const_set(module, sym, ID2SYM(sym));
+      rb_hash_aset(symHash, ID2SYM(sym), val);
     }
 
-	_rb_define_module_function(module, "get_all_pressed", inputCompatGetAllPressed);
-	_rb_define_module_function(module, "get_all_triggered", inputCompatGetAllTriggered);
-	_rb_define_module_function(module, "get_all_repeated", inputCompatGetAllRepeated);
-	_rb_define_module_function(module, "set_all_pressed_unpressed", inputCompatSetAllPressedUnPressed);
-	_rb_define_module_function(module, "set_all_unpressed", inputCompatSetAllUnPressed);
-	_rb_define_module_function(module, "set_key", inputCompatSetKey);
-	_rb_define_module_function(module, "unset_key", inputCompatUnsetKey);
+    rb_iv_set(module, "buttoncodes", symHash);
+    getRbData()->buttoncodeHash = symHash;
+  } else {
+    for (size_t i = 0; i < buttonCodesN; ++i) {
+      ID sym = rb_intern(buttonCodes[i].str);
+      VALUE val = INT2FIX(buttonCodes[i].val);
 
-	_rb_define_module_function(module, "set_key_pressed", inputCompatSetKeyPressed);
-	_rb_define_module_function(module, "set_key_repeated", inputCompatSetKeyRepeated);
-	_rb_define_module_function(module, "set_key_triggered", inputCompatSetKeyTriggered);
+      rb_const_set(module, sym, val);
+    }
+  }
 
-    BIND_SDL_SCANCODE(UNKNOWN)
-	BIND_SDL_SCANCODE(BACKSPACE)
-	BIND_SDL_SCANCODE(TAB)
-	BIND_SDL_SCANCODE(RETURN)
-	BIND_SDL_SCANCODE(ESCAPE)
-	BIND_SDL_SCANCODE(SPACE)
-	BIND_SDL_SCANCODE(EXCLAIM)
-	BIND_SDL_SCANCODE(QUOTEDBL)
-	BIND_SDL_SCANCODE(HASH)
-	BIND_SDL_SCANCODE(DOLLAR)
-	BIND_SDL_SCANCODE(PERCENT)
-	BIND_SDL_SCANCODE(AMPERSAND)
-	BIND_SDL_SCANCODE(QUOTE)
-	BIND_SDL_SCANCODE(LEFTPAREN)
-	BIND_SDL_SCANCODE(RIGHTPAREN)
-	BIND_SDL_SCANCODE(ASTERISK)
-	BIND_SDL_SCANCODE(PLUS)
-	BIND_SDL_SCANCODE(COMMA)
-	BIND_SDL_SCANCODE(MINUS)
-	BIND_SDL_SCANCODE(PERIOD)
-	BIND_SDL_SCANCODE(SLASH)
-	BIND_SDL_SCANCODE(0)
-	BIND_SDL_SCANCODE(1)
-	BIND_SDL_SCANCODE(2)
-	BIND_SDL_SCANCODE(3)
-	BIND_SDL_SCANCODE(4)
-	BIND_SDL_SCANCODE(5)
-	BIND_SDL_SCANCODE(6)
-	BIND_SDL_SCANCODE(7)
-	BIND_SDL_SCANCODE(8)
-	BIND_SDL_SCANCODE(9)
-	BIND_SDL_SCANCODE(COLON)
-	BIND_SDL_SCANCODE(SEMICOLON)
-	BIND_SDL_SCANCODE(LESS)
-	BIND_SDL_SCANCODE(EQUALS)
-	BIND_SDL_SCANCODE(GREATER)
-	BIND_SDL_SCANCODE(QUESTION)
-	BIND_SDL_SCANCODE(AT)
-	BIND_SDL_SCANCODE(LEFTBRACKET)
-	BIND_SDL_SCANCODE(BACKSLASH)
-	BIND_SDL_SCANCODE(RIGHTBRACKET)
-	BIND_SDL_SCANCODE(CARET)
-	BIND_SDL_SCANCODE(UNDERSCORE)
-	BIND_SDL_SCANCODE(BACKQUOTE)
-	BIND_SDL_SCANCODE(A)
-	BIND_SDL_SCANCODE(B)
-	BIND_SDL_SCANCODE(C)
-	BIND_SDL_SCANCODE(D)
-	BIND_SDL_SCANCODE(E)
-	BIND_SDL_SCANCODE(F)
-	BIND_SDL_SCANCODE(G)
-	BIND_SDL_SCANCODE(H)
-	BIND_SDL_SCANCODE(I)
-	BIND_SDL_SCANCODE(J)
-	BIND_SDL_SCANCODE(K)
-	BIND_SDL_SCANCODE(L)
-	BIND_SDL_SCANCODE(M)
-	BIND_SDL_SCANCODE(N)
-	BIND_SDL_SCANCODE(O)
-	BIND_SDL_SCANCODE(P)
-	BIND_SDL_SCANCODE(Q)
-	BIND_SDL_SCANCODE(R)
-	BIND_SDL_SCANCODE(S)
-	BIND_SDL_SCANCODE(T)
-	BIND_SDL_SCANCODE(U)
-	BIND_SDL_SCANCODE(V)
-	BIND_SDL_SCANCODE(W)
-	BIND_SDL_SCANCODE(X)
-	BIND_SDL_SCANCODE(Y)
-	BIND_SDL_SCANCODE(Z)
-	BIND_SDL_SCANCODE(DELETE)
-	BIND_SDL_SCANCODE(CAPSLOCK)
-	BIND_SDL_SCANCODE(F1)
-	BIND_SDL_SCANCODE(F2)
-	BIND_SDL_SCANCODE(F3)
-	BIND_SDL_SCANCODE(F4)
-	BIND_SDL_SCANCODE(F5)
-	BIND_SDL_SCANCODE(F6)
-	BIND_SDL_SCANCODE(F7)
-	BIND_SDL_SCANCODE(F8)
-	BIND_SDL_SCANCODE(F9)
-	BIND_SDL_SCANCODE(F10)
-	BIND_SDL_SCANCODE(F11)
-	BIND_SDL_SCANCODE(F12)
-	BIND_SDL_SCANCODE(PRINTSCREEN)
-	BIND_SDL_SCANCODE(SCROLLLOCK)
-	BIND_SDL_SCANCODE(PAUSE)
-	BIND_SDL_SCANCODE(INSERT)
-	BIND_SDL_SCANCODE(HOME)
-	BIND_SDL_SCANCODE(PAGEUP)
-	BIND_SDL_SCANCODE(END)
-	BIND_SDL_SCANCODE(PAGEDOWN)
-	BIND_SDL_SCANCODE(RIGHT)
-	BIND_SDL_SCANCODE(LEFT)
-	BIND_SDL_SCANCODE(DOWN)
-	BIND_SDL_SCANCODE(UP)
-	BIND_SDL_SCANCODE(NUMLOCKCLEAR)
-	BIND_SDL_SCANCODE(KP_DIVIDE)
-	BIND_SDL_SCANCODE(KP_MULTIPLY)
-	BIND_SDL_SCANCODE(KP_MINUS)
-	BIND_SDL_SCANCODE(KP_PLUS)
-	BIND_SDL_SCANCODE(KP_ENTER)
-	BIND_SDL_SCANCODE(KP_1)
-	BIND_SDL_SCANCODE(KP_2)
-	BIND_SDL_SCANCODE(KP_3)
-	BIND_SDL_SCANCODE(KP_4)
-	BIND_SDL_SCANCODE(KP_5)
-	BIND_SDL_SCANCODE(KP_6)
-	BIND_SDL_SCANCODE(KP_7)
-	BIND_SDL_SCANCODE(KP_8)
-	BIND_SDL_SCANCODE(KP_9)
-	BIND_SDL_SCANCODE(KP_0)
-	BIND_SDL_SCANCODE(KP_PERIOD)
-	BIND_SDL_SCANCODE(APPLICATION)
-	BIND_SDL_SCANCODE(POWER)
-	BIND_SDL_SCANCODE(KP_EQUALS)
-	BIND_SDL_SCANCODE(F13)
-	BIND_SDL_SCANCODE(F14)
-	BIND_SDL_SCANCODE(F15)
-	BIND_SDL_SCANCODE(F16)
-	BIND_SDL_SCANCODE(F17)
-	BIND_SDL_SCANCODE(F18)
-	BIND_SDL_SCANCODE(F19)
-	BIND_SDL_SCANCODE(F20)
-	BIND_SDL_SCANCODE(F21)
-	BIND_SDL_SCANCODE(F22)
-	BIND_SDL_SCANCODE(F23)
-	BIND_SDL_SCANCODE(F24)
-	// KEY_EXECUTE is used in windows, so it is not exposed. not that anyone really needs it.
-	// INPUT_DEF_BUTTONCODE(KEY_EXECUTE)
-	BIND_SDL_SCANCODE(HELP)
-	BIND_SDL_SCANCODE(MENU)
-	BIND_SDL_SCANCODE(SELECT)
-	BIND_SDL_SCANCODE(STOP)
-	BIND_SDL_SCANCODE(AGAIN)
-	BIND_SDL_SCANCODE(UNDO)
-	BIND_SDL_SCANCODE(CUT)
-	BIND_SDL_SCANCODE(COPY)
-	BIND_SDL_SCANCODE(PASTE)
-	BIND_SDL_SCANCODE(FIND)
-	BIND_SDL_SCANCODE(MUTE)
-	BIND_SDL_SCANCODE(VOLUMEUP)
-	BIND_SDL_SCANCODE(VOLUMEDOWN)
-	BIND_SDL_SCANCODE(KP_COMMA)
-	BIND_SDL_SCANCODE(KP_EQUALSAS400)
-	BIND_SDL_SCANCODE(ALTERASE)
-	BIND_SDL_SCANCODE(SYSREQ)
-	BIND_SDL_SCANCODE(CANCEL)
-	BIND_SDL_SCANCODE(CLEAR)
-	BIND_SDL_SCANCODE(PRIOR)
-	BIND_SDL_SCANCODE(RETURN2)
-	BIND_SDL_SCANCODE(SEPARATOR)
-	BIND_SDL_SCANCODE(OUT)
-	BIND_SDL_SCANCODE(OPER)
-	BIND_SDL_SCANCODE(CLEARAGAIN)
-	BIND_SDL_SCANCODE(CRSEL)
-	BIND_SDL_SCANCODE(EXSEL)
-	BIND_SDL_SCANCODE(KP_00)
-	BIND_SDL_SCANCODE(KP_000)
-	BIND_SDL_SCANCODE(THOUSANDSSEPARATOR)
-	BIND_SDL_SCANCODE(DECIMALSEPARATOR)
-	BIND_SDL_SCANCODE(CURRENCYUNIT)
-	BIND_SDL_SCANCODE(CURRENCYSUBUNIT)
-	BIND_SDL_SCANCODE(KP_LEFTPAREN)
-	BIND_SDL_SCANCODE(KP_RIGHTPAREN)
-	BIND_SDL_SCANCODE(KP_LEFTBRACE)
-	BIND_SDL_SCANCODE(KP_RIGHTBRACE)
-	BIND_SDL_SCANCODE(KP_TAB)
-	BIND_SDL_SCANCODE(KP_BACKSPACE)
-	BIND_SDL_SCANCODE(KP_A)
-	BIND_SDL_SCANCODE(KP_B)
-	BIND_SDL_SCANCODE(KP_C)
-	BIND_SDL_SCANCODE(KP_D)
-	BIND_SDL_SCANCODE(KP_E)
-	BIND_SDL_SCANCODE(KP_F)
-	BIND_SDL_SCANCODE(KP_XOR)
-	BIND_SDL_SCANCODE(KP_POWER)
-	BIND_SDL_SCANCODE(KP_PERCENT)
-	BIND_SDL_SCANCODE(KP_LESS)
-	BIND_SDL_SCANCODE(KP_GREATER)
-	BIND_SDL_SCANCODE(KP_AMPERSAND)
-	BIND_SDL_SCANCODE(KP_DBLAMPERSAND)
-	BIND_SDL_SCANCODE(KP_VERTICALBAR)
-	BIND_SDL_SCANCODE(KP_DBLVERTICALBAR)
-	BIND_SDL_SCANCODE(KP_COLON)
-	BIND_SDL_SCANCODE(KP_HASH)
-	BIND_SDL_SCANCODE(KP_SPACE)
-	BIND_SDL_SCANCODE(KP_AT)
-	BIND_SDL_SCANCODE(KP_EXCLAM)
-	BIND_SDL_SCANCODE(KP_MEMSTORE)
-	BIND_SDL_SCANCODE(KP_MEMRECALL)
-	BIND_SDL_SCANCODE(KP_MEMCLEAR)
-	BIND_SDL_SCANCODE(KP_MEMADD)
-	BIND_SDL_SCANCODE(KP_MEMSUBTRACT)
-	BIND_SDL_SCANCODE(KP_MEMMULTIPLY)
-	BIND_SDL_SCANCODE(KP_MEMDIVIDE)
-	BIND_SDL_SCANCODE(KP_PLUSMINUS)
-	BIND_SDL_SCANCODE(KP_CLEAR)
-	BIND_SDL_SCANCODE(KP_CLEARENTRY)
-	BIND_SDL_SCANCODE(KP_BINARY)
-	BIND_SDL_SCANCODE(KP_OCTAL)
-	BIND_SDL_SCANCODE(KP_DECIMAL)
-	BIND_SDL_SCANCODE(KP_HEXADECIMAL)
-	BIND_SDL_SCANCODE(LCTRL)
-	BIND_SDL_SCANCODE(LSHIFT)
-	BIND_SDL_SCANCODE(LALT)
-	BIND_SDL_SCANCODE(LGUI)
-	BIND_SDL_SCANCODE(RCTRL)
-	BIND_SDL_SCANCODE(RSHIFT)
-	BIND_SDL_SCANCODE(RALT)
-	BIND_SDL_SCANCODE(RGUI)
-	BIND_SDL_SCANCODE(MODE)
-	BIND_SDL_SCANCODE(AUDIONEXT)
-	BIND_SDL_SCANCODE(AUDIOPREV)
-	BIND_SDL_SCANCODE(AUDIOSTOP)
-	BIND_SDL_SCANCODE(AUDIOPLAY)
-	BIND_SDL_SCANCODE(AUDIOMUTE)
-	BIND_SDL_SCANCODE(MEDIASELECT)
-	BIND_SDL_SCANCODE(WWW)
-	BIND_SDL_SCANCODE(MAIL)
-	BIND_SDL_SCANCODE(CALCULATOR)
-	BIND_SDL_SCANCODE(COMPUTER)
-	BIND_SDL_SCANCODE(AC_SEARCH)
-	BIND_SDL_SCANCODE(AC_HOME)
-	BIND_SDL_SCANCODE(AC_BACK)
-	BIND_SDL_SCANCODE(AC_FORWARD)
-	BIND_SDL_SCANCODE(AC_STOP)
-	BIND_SDL_SCANCODE(AC_REFRESH)
-	BIND_SDL_SCANCODE(AC_BOOKMARKS)
-	BIND_SDL_SCANCODE(BRIGHTNESSDOWN)
-	BIND_SDL_SCANCODE(BRIGHTNESSUP)
-	BIND_SDL_SCANCODE(DISPLAYSWITCH)
-	BIND_SDL_SCANCODE(KBDILLUMTOGGLE)
-	BIND_SDL_SCANCODE(KBDILLUMDOWN)
-	BIND_SDL_SCANCODE(KBDILLUMUP)
-	BIND_SDL_SCANCODE(EJECT)
-	BIND_SDL_SCANCODE(SLEEP)
+  _rb_define_module_function(module, "get_all_pressed",
+                             inputCompatGetAllPressed);
+  _rb_define_module_function(module, "get_all_triggered",
+                             inputCompatGetAllTriggered);
+  _rb_define_module_function(module, "get_all_repeated",
+                             inputCompatGetAllRepeated);
+  _rb_define_module_function(module, "set_all_pressed_unpressed",
+                             inputCompatSetAllPressedUnPressed);
+  _rb_define_module_function(module, "set_all_unpressed",
+                             inputCompatSetAllUnPressed);
+  _rb_define_module_function(module, "set_key", inputCompatSetKey);
+  _rb_define_module_function(module, "unset_key", inputCompatUnsetKey);
+
+  _rb_define_module_function(module, "set_key_pressed",
+                             inputCompatSetKeyPressed);
+  _rb_define_module_function(module, "set_key_repeated",
+                             inputCompatSetKeyRepeated);
+  _rb_define_module_function(module, "set_key_triggered",
+                             inputCompatSetKeyTriggered);
+
+  BIND_SDL_SCANCODE(UNKNOWN)
+  BIND_SDL_SCANCODE(BACKSPACE)
+  BIND_SDL_SCANCODE(TAB)
+  BIND_SDL_SCANCODE(RETURN)
+  BIND_SDL_SCANCODE(ESCAPE)
+  BIND_SDL_SCANCODE(SPACE)
+  BIND_SDL_SCANCODE(EXCLAIM)
+  BIND_SDL_SCANCODE(QUOTEDBL)
+  BIND_SDL_SCANCODE(HASH)
+  BIND_SDL_SCANCODE(DOLLAR)
+  BIND_SDL_SCANCODE(PERCENT)
+  BIND_SDL_SCANCODE(AMPERSAND)
+  BIND_SDL_SCANCODE(QUOTE)
+  BIND_SDL_SCANCODE(LEFTPAREN)
+  BIND_SDL_SCANCODE(RIGHTPAREN)
+  BIND_SDL_SCANCODE(ASTERISK)
+  BIND_SDL_SCANCODE(PLUS)
+  BIND_SDL_SCANCODE(COMMA)
+  BIND_SDL_SCANCODE(MINUS)
+  BIND_SDL_SCANCODE(PERIOD)
+  BIND_SDL_SCANCODE(SLASH)
+  BIND_SDL_SCANCODE(0)
+  BIND_SDL_SCANCODE(1)
+  BIND_SDL_SCANCODE(2)
+  BIND_SDL_SCANCODE(3)
+  BIND_SDL_SCANCODE(4)
+  BIND_SDL_SCANCODE(5)
+  BIND_SDL_SCANCODE(6)
+  BIND_SDL_SCANCODE(7)
+  BIND_SDL_SCANCODE(8)
+  BIND_SDL_SCANCODE(9)
+  BIND_SDL_SCANCODE(COLON)
+  BIND_SDL_SCANCODE(SEMICOLON)
+  BIND_SDL_SCANCODE(LESS)
+  BIND_SDL_SCANCODE(EQUALS)
+  BIND_SDL_SCANCODE(GREATER)
+  BIND_SDL_SCANCODE(QUESTION)
+  BIND_SDL_SCANCODE(AT)
+  BIND_SDL_SCANCODE(LEFTBRACKET)
+  BIND_SDL_SCANCODE(BACKSLASH)
+  BIND_SDL_SCANCODE(RIGHTBRACKET)
+  BIND_SDL_SCANCODE(CARET)
+  BIND_SDL_SCANCODE(UNDERSCORE)
+  BIND_SDL_SCANCODE(BACKQUOTE)
+  BIND_SDL_SCANCODE(A)
+  BIND_SDL_SCANCODE(B)
+  BIND_SDL_SCANCODE(C)
+  BIND_SDL_SCANCODE(D)
+  BIND_SDL_SCANCODE(E)
+  BIND_SDL_SCANCODE(F)
+  BIND_SDL_SCANCODE(G)
+  BIND_SDL_SCANCODE(H)
+  BIND_SDL_SCANCODE(I)
+  BIND_SDL_SCANCODE(J)
+  BIND_SDL_SCANCODE(K)
+  BIND_SDL_SCANCODE(L)
+  BIND_SDL_SCANCODE(M)
+  BIND_SDL_SCANCODE(N)
+  BIND_SDL_SCANCODE(O)
+  BIND_SDL_SCANCODE(P)
+  BIND_SDL_SCANCODE(Q)
+  BIND_SDL_SCANCODE(R)
+  BIND_SDL_SCANCODE(S)
+  BIND_SDL_SCANCODE(T)
+  BIND_SDL_SCANCODE(U)
+  BIND_SDL_SCANCODE(V)
+  BIND_SDL_SCANCODE(W)
+  BIND_SDL_SCANCODE(X)
+  BIND_SDL_SCANCODE(Y)
+  BIND_SDL_SCANCODE(Z)
+  BIND_SDL_SCANCODE(DELETE)
+  BIND_SDL_SCANCODE(CAPSLOCK)
+  BIND_SDL_SCANCODE(F1)
+  BIND_SDL_SCANCODE(F2)
+  BIND_SDL_SCANCODE(F3)
+  BIND_SDL_SCANCODE(F4)
+  BIND_SDL_SCANCODE(F5)
+  BIND_SDL_SCANCODE(F6)
+  BIND_SDL_SCANCODE(F7)
+  BIND_SDL_SCANCODE(F8)
+  BIND_SDL_SCANCODE(F9)
+  BIND_SDL_SCANCODE(F10)
+  BIND_SDL_SCANCODE(F11)
+  BIND_SDL_SCANCODE(F12)
+  BIND_SDL_SCANCODE(PRINTSCREEN)
+  BIND_SDL_SCANCODE(SCROLLLOCK)
+  BIND_SDL_SCANCODE(PAUSE)
+  BIND_SDL_SCANCODE(INSERT)
+  BIND_SDL_SCANCODE(HOME)
+  BIND_SDL_SCANCODE(PAGEUP)
+  BIND_SDL_SCANCODE(END)
+  BIND_SDL_SCANCODE(PAGEDOWN)
+  BIND_SDL_SCANCODE(RIGHT)
+  BIND_SDL_SCANCODE(LEFT)
+  BIND_SDL_SCANCODE(DOWN)
+  BIND_SDL_SCANCODE(UP)
+  BIND_SDL_SCANCODE(NUMLOCKCLEAR)
+  BIND_SDL_SCANCODE(KP_DIVIDE)
+  BIND_SDL_SCANCODE(KP_MULTIPLY)
+  BIND_SDL_SCANCODE(KP_MINUS)
+  BIND_SDL_SCANCODE(KP_PLUS)
+  BIND_SDL_SCANCODE(KP_ENTER)
+  BIND_SDL_SCANCODE(KP_1)
+  BIND_SDL_SCANCODE(KP_2)
+  BIND_SDL_SCANCODE(KP_3)
+  BIND_SDL_SCANCODE(KP_4)
+  BIND_SDL_SCANCODE(KP_5)
+  BIND_SDL_SCANCODE(KP_6)
+  BIND_SDL_SCANCODE(KP_7)
+  BIND_SDL_SCANCODE(KP_8)
+  BIND_SDL_SCANCODE(KP_9)
+  BIND_SDL_SCANCODE(KP_0)
+  BIND_SDL_SCANCODE(KP_PERIOD)
+  BIND_SDL_SCANCODE(APPLICATION)
+  BIND_SDL_SCANCODE(POWER)
+  BIND_SDL_SCANCODE(KP_EQUALS)
+  BIND_SDL_SCANCODE(F13)
+  BIND_SDL_SCANCODE(F14)
+  BIND_SDL_SCANCODE(F15)
+  BIND_SDL_SCANCODE(F16)
+  BIND_SDL_SCANCODE(F17)
+  BIND_SDL_SCANCODE(F18)
+  BIND_SDL_SCANCODE(F19)
+  BIND_SDL_SCANCODE(F20)
+  BIND_SDL_SCANCODE(F21)
+  BIND_SDL_SCANCODE(F22)
+  BIND_SDL_SCANCODE(F23)
+  BIND_SDL_SCANCODE(F24)
+  // KEY_EXECUTE is used in windows, so it is not exposed. not that anyone
+  // really needs it. INPUT_DEF_BUTTONCODE(KEY_EXECUTE)
+  BIND_SDL_SCANCODE(HELP)
+  BIND_SDL_SCANCODE(MENU)
+  BIND_SDL_SCANCODE(SELECT)
+  BIND_SDL_SCANCODE(STOP)
+  BIND_SDL_SCANCODE(AGAIN)
+  BIND_SDL_SCANCODE(UNDO)
+  BIND_SDL_SCANCODE(CUT)
+  BIND_SDL_SCANCODE(COPY)
+  BIND_SDL_SCANCODE(PASTE)
+  BIND_SDL_SCANCODE(FIND)
+  BIND_SDL_SCANCODE(MUTE)
+  BIND_SDL_SCANCODE(VOLUMEUP)
+  BIND_SDL_SCANCODE(VOLUMEDOWN)
+  BIND_SDL_SCANCODE(KP_COMMA)
+  BIND_SDL_SCANCODE(KP_EQUALSAS400)
+  BIND_SDL_SCANCODE(ALTERASE)
+  BIND_SDL_SCANCODE(SYSREQ)
+  BIND_SDL_SCANCODE(CANCEL)
+  BIND_SDL_SCANCODE(CLEAR)
+  BIND_SDL_SCANCODE(PRIOR)
+  BIND_SDL_SCANCODE(RETURN2)
+  BIND_SDL_SCANCODE(SEPARATOR)
+  BIND_SDL_SCANCODE(OUT)
+  BIND_SDL_SCANCODE(OPER)
+  BIND_SDL_SCANCODE(CLEARAGAIN)
+  BIND_SDL_SCANCODE(CRSEL)
+  BIND_SDL_SCANCODE(EXSEL)
+  BIND_SDL_SCANCODE(KP_00)
+  BIND_SDL_SCANCODE(KP_000)
+  BIND_SDL_SCANCODE(THOUSANDSSEPARATOR)
+  BIND_SDL_SCANCODE(DECIMALSEPARATOR)
+  BIND_SDL_SCANCODE(CURRENCYUNIT)
+  BIND_SDL_SCANCODE(CURRENCYSUBUNIT)
+  BIND_SDL_SCANCODE(KP_LEFTPAREN)
+  BIND_SDL_SCANCODE(KP_RIGHTPAREN)
+  BIND_SDL_SCANCODE(KP_LEFTBRACE)
+  BIND_SDL_SCANCODE(KP_RIGHTBRACE)
+  BIND_SDL_SCANCODE(KP_TAB)
+  BIND_SDL_SCANCODE(KP_BACKSPACE)
+  BIND_SDL_SCANCODE(KP_A)
+  BIND_SDL_SCANCODE(KP_B)
+  BIND_SDL_SCANCODE(KP_C)
+  BIND_SDL_SCANCODE(KP_D)
+  BIND_SDL_SCANCODE(KP_E)
+  BIND_SDL_SCANCODE(KP_F)
+  BIND_SDL_SCANCODE(KP_XOR)
+  BIND_SDL_SCANCODE(KP_POWER)
+  BIND_SDL_SCANCODE(KP_PERCENT)
+  BIND_SDL_SCANCODE(KP_LESS)
+  BIND_SDL_SCANCODE(KP_GREATER)
+  BIND_SDL_SCANCODE(KP_AMPERSAND)
+  BIND_SDL_SCANCODE(KP_DBLAMPERSAND)
+  BIND_SDL_SCANCODE(KP_VERTICALBAR)
+  BIND_SDL_SCANCODE(KP_DBLVERTICALBAR)
+  BIND_SDL_SCANCODE(KP_COLON)
+  BIND_SDL_SCANCODE(KP_HASH)
+  BIND_SDL_SCANCODE(KP_SPACE)
+  BIND_SDL_SCANCODE(KP_AT)
+  BIND_SDL_SCANCODE(KP_EXCLAM)
+  BIND_SDL_SCANCODE(KP_MEMSTORE)
+  BIND_SDL_SCANCODE(KP_MEMRECALL)
+  BIND_SDL_SCANCODE(KP_MEMCLEAR)
+  BIND_SDL_SCANCODE(KP_MEMADD)
+  BIND_SDL_SCANCODE(KP_MEMSUBTRACT)
+  BIND_SDL_SCANCODE(KP_MEMMULTIPLY)
+  BIND_SDL_SCANCODE(KP_MEMDIVIDE)
+  BIND_SDL_SCANCODE(KP_PLUSMINUS)
+  BIND_SDL_SCANCODE(KP_CLEAR)
+  BIND_SDL_SCANCODE(KP_CLEARENTRY)
+  BIND_SDL_SCANCODE(KP_BINARY)
+  BIND_SDL_SCANCODE(KP_OCTAL)
+  BIND_SDL_SCANCODE(KP_DECIMAL)
+  BIND_SDL_SCANCODE(KP_HEXADECIMAL)
+  BIND_SDL_SCANCODE(LCTRL)
+  BIND_SDL_SCANCODE(LSHIFT)
+  BIND_SDL_SCANCODE(LALT)
+  BIND_SDL_SCANCODE(LGUI)
+  BIND_SDL_SCANCODE(RCTRL)
+  BIND_SDL_SCANCODE(RSHIFT)
+  BIND_SDL_SCANCODE(RALT)
+  BIND_SDL_SCANCODE(RGUI)
+  BIND_SDL_SCANCODE(MODE)
+  BIND_SDL_SCANCODE(AUDIONEXT)
+  BIND_SDL_SCANCODE(AUDIOPREV)
+  BIND_SDL_SCANCODE(AUDIOSTOP)
+  BIND_SDL_SCANCODE(AUDIOPLAY)
+  BIND_SDL_SCANCODE(AUDIOMUTE)
+  BIND_SDL_SCANCODE(MEDIASELECT)
+  BIND_SDL_SCANCODE(WWW)
+  BIND_SDL_SCANCODE(MAIL)
+  BIND_SDL_SCANCODE(CALCULATOR)
+  BIND_SDL_SCANCODE(COMPUTER)
+  BIND_SDL_SCANCODE(AC_SEARCH)
+  BIND_SDL_SCANCODE(AC_HOME)
+  BIND_SDL_SCANCODE(AC_BACK)
+  BIND_SDL_SCANCODE(AC_FORWARD)
+  BIND_SDL_SCANCODE(AC_STOP)
+  BIND_SDL_SCANCODE(AC_REFRESH)
+  BIND_SDL_SCANCODE(AC_BOOKMARKS)
+  BIND_SDL_SCANCODE(BRIGHTNESSDOWN)
+  BIND_SDL_SCANCODE(BRIGHTNESSUP)
+  BIND_SDL_SCANCODE(DISPLAYSWITCH)
+  BIND_SDL_SCANCODE(KBDILLUMTOGGLE)
+  BIND_SDL_SCANCODE(KBDILLUMDOWN)
+  BIND_SDL_SCANCODE(KBDILLUMUP)
+  BIND_SDL_SCANCODE(EJECT)
+  BIND_SDL_SCANCODE(SLEEP)
 }
