@@ -36,7 +36,6 @@ binding_source = [files(
     'oneshot-binding.cpp',
     'oneshot-steam-binding.cpp',
     'oneshot-niko-binding.cpp',
-    'oneshot-journal-binding.cpp',
     'oneshot-wallpaper-binding.cpp',
     'modshot-window-binding.cpp',
     'modshot-system-binding.cpp',

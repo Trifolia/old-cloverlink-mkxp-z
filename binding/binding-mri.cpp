@@ -110,7 +110,6 @@ void httpBindingInit();
 
 void oneshotBindingInit();
 void oneshotSteamBindingInit();
-void oneshotJournalBindingInit();
 void oneshotNikoBindingInit();
 void oneshotWallpaperBindingInit();
 #ifdef __linux__
@@ -213,7 +212,6 @@ static void mriBindingInit() {
 
   oneshotBindingInit();
   oneshotSteamBindingInit();
-  oneshotJournalBindingInit();
   oneshotNikoBindingInit();
   oneshotWallpaperBindingInit();
 
